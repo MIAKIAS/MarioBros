@@ -18,6 +18,9 @@ void init_location();
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 
+int mario_x = 10;
+int mario_y = 179;
+
 int main(void)
 {
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
@@ -43,9 +46,7 @@ int main(void)
 
         // code for drawing the boxes and lines 
         draw_background();
-        draw_image(100, 100, Mario_stand, 15, 19);
-        draw_image(20, 100, Mario_run, 19, 19);
-        draw_image(150, 100, Mario_jump, 19, 17);
+        draw_image(mario_x, mario_y, Mario_stand, 19, 25);
         // code for updating the locations of boxes
         //update_location();
 
@@ -66,6 +67,7 @@ void draw_background(){
 }
 
 //helper function to draw any image
+//x,y as the coordinate of right top conor
 void draw_image(int x, int y, int color[], int width, int height){
     for (int i = 0; i < width; i++)
     {
