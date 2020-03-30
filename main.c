@@ -108,8 +108,6 @@ void draw_main_canvas(){
 	
     while (1)
     {
-        /* Erase any boxes and lines that were drawn in the last iteration */
-        clear_screen();
 
         // code for drawing the boxes and lines 
         draw_background();
