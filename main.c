@@ -1,20 +1,12 @@
-volatile int pixel_buffer_start; // global variable
-
-void plot_pixel(int x, int y, short int line_color);
-void clear_screen();
-void draw_line(int x0, int y0, int x1, int y1, short int line_color);
-void swap(int* a, int* b);
-void wait_for_vsync();
-void draw_background();
-void draw_image();
-void update_location();
-void init_location();
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
 #include "image.h"
+#include "address_map_arm.h"
+#include "interrupt.h"
 
+
+/*Constant defines here*/
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 #define LOWEST_Y 202
@@ -22,13 +14,23 @@ void init_location();
 //speed of characters
 #define BAD_MUSHROOM_SPEED 5
 #define MARIO_RUN_SPEED 2
+#define MARIO_JUMP_SPEED 1
+#define MARIO_JUMP_HIGHT 100
 #define GRAVITY_FALL 20
+
+/*global variables defines here*/
+volatile int pixel_buffer_start; 
 
 //Mario's position
 int mario_x = 10;
 int mario_y = LOWEST_Y - 25;
 
-
+//whether Mario is moving
+bool mario_move_forward = false;
+bool mario_move_backward = false;
+bool mario_jump = false;
+bool mario_fall = false;
+int mario_jumped = 0;
 
 //location of steps in first background
 int steps_1_low_x = 49;
@@ -38,7 +40,7 @@ int steps_1_y = 131;
 //location of pipe in first background
 int pipe_1_low_x = 202;
 int pipe_1_high_x = 236;
-int pipe_1_y = 217;
+int pipe_1_y = 162;
 
 //up to three bad mushrooms
 bool isBadMushroom[3] = {true, true, false};
@@ -50,8 +52,34 @@ bool isGameOver = false;
 //total lives left
 int lives = 1;
 
-int main(void)
-{
+/*Function prototypes*/
+void plot_pixel(int x, int y, short int line_color);
+void clear_screen();
+void draw_line(int x0, int y0, int x1, int y1, short int line_color);
+void swap(int* a, int* b);
+void wait_for_vsync();
+void draw_background();
+void draw_image();
+void update_location();
+void init_location();
+void draw_main_canvas();
+void bad_mushroom_update_location();
+void mario_update_location();
+
+
+int main(void){
+    disable_A9_interrupts ();	// disable interrupts in the A9 processor
+	set_A9_IRQ_stack ();			// initialize the stack pointer for IRQ mode
+	config_GIC ();					// configure the general interrupt controller
+	config_KEYs ();				// configure pushbutton KEYs to generate interrupts
+
+	enable_A9_interrupts ();	// enable interrupts in the A9 processor
+
+    //draw things
+    draw_main_canvas();
+}
+
+void draw_main_canvas(){
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     // declare other variables(not shown)
     // initialize location and direction of rectangles(not shown)
@@ -98,6 +126,85 @@ int main(void)
 
 //update locations for all characters
 void update_location(){
+    mario_update_location();
+    bad_mushroom_update_location();
+
+    //check whether the game is over
+    if (lives <= 0){
+        isGameOver = true;
+    }
+}
+
+
+void mario_update_location(){
+    bool on_step = false;
+    //control mario depends on different flags
+    if (mario_move_forward && (mario_x + 19 <= pipe_1_low_x || mario_y + 25 <= pipe_1_y)){
+        mario_x += MARIO_RUN_SPEED;
+    } 
+    if (mario_move_backward && (mario_x >= pipe_1_high_x || mario_y + 25 <= pipe_1_y)){
+        mario_x -= MARIO_RUN_SPEED;
+    }
+    if (mario_jump){
+        //if under steps
+        if (steps_1_low_x <= mario_x && mario_x <= steps_1_high_x && mario_y > steps_1_y){
+            if (!mario_fall && mario_y > steps_1_y + 20){
+                mario_y -= MARIO_JUMP_SPEED;
+            } else{
+                mario_fall = true;
+                mario_jumped = 0;
+            }
+        }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT){
+            mario_y -= MARIO_JUMP_SPEED;
+            mario_jumped += MARIO_JUMP_SPEED;
+        } else{
+            mario_fall = true;
+            mario_jumped = 0;
+        }
+
+        if (mario_fall){
+            if (steps_1_low_x <= mario_x && mario_x <= steps_1_high_x && mario_y + 25 <= steps_1_y + 20){
+                on_step = true;
+            }
+            mario_y += GRAVITY_FALL;
+        }
+    }
+    //if not landing, cannot jump again
+    //if on steps
+    if (mario_fall && on_step){
+        if (mario_y + 25 >= steps_1_y){
+            mario_y = steps_1_y - 25;
+            mario_jump = false;
+            mario_fall = false;
+        }
+    }//if on the pipe 
+    else if (mario_fall && pipe_1_low_x <= mario_x + 19 && mario_x <= pipe_1_high_x){
+        if (mario_y + 25 >= pipe_1_y){
+            mario_y = pipe_1_y - 25;
+            mario_jump = false;
+            mario_fall = false;
+        }
+    } else if (mario_fall){
+        if (mario_y + 25 >= LOWEST_Y){
+            mario_y = LOWEST_Y - 25;
+            mario_jump = false;
+            mario_fall = false;
+        }
+    }
+    mario_move_backward = false;
+    mario_move_forward = false;
+
+    //gravity falling of Mario
+    if (!mario_jump && (mario_x + 19 <= steps_1_low_x || mario_x >= steps_1_high_x) && (mario_x + 19 <= pipe_1_low_x || mario_x >= pipe_1_high_x) && mario_y + 25 < LOWEST_Y){
+        mario_y += GRAVITY_FALL;
+        if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
+            mario_y = LOWEST_Y - 25;
+        }
+    } 
+}
+
+
+void bad_mushroom_update_location(){
     //bad mushroom move to left automatically
     for (int i = 0; i < 3; i++)
     {
@@ -106,7 +213,7 @@ void update_location(){
         }
 
         //gravity falling of bad mush room
-        if (badMushroom_x[i] + 19 * 0.5 <= steps_1_low_x && badMushroom_y[i] + 19 < LOWEST_Y){
+        if (isBadMushroom[i] && badMushroom_x[i] + 19 * 0.5 <= steps_1_low_x && badMushroom_y[i] + 19 < LOWEST_Y){
             badMushroom_y[i] += GRAVITY_FALL;
             if (badMushroom_y[i] + GRAVITY_FALL >= LOWEST_Y - 19){
                 badMushroom_y[i] = LOWEST_Y - 19;
@@ -114,19 +221,10 @@ void update_location(){
         }
 
         //check whether mario dies
-        if (badMushroom_x[i] <= mario_x + 19 && badMushroom_x[i] + BAD_MUSHROOM_SPEED >= mario_x + 19  && badMushroom_y[i] + 8 > mario_x){
+        if (isBadMushroom[i] && badMushroom_x[i] <= mario_x + 19 && badMushroom_x[i] + BAD_MUSHROOM_SPEED >= mario_x + 19  && badMushroom_y[i] <= mario_x + 25){
             lives--;
         }
-
-        //check whether the game is over
-        if (lives <= 0){
-            isGameOver = true;
-        }
     }
-
-    
-    
-    
 }
 
 //helper function to draw any background
