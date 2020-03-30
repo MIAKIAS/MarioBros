@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <time.h>
 #include "image.h"
-#include "address_map_arm.h"
 #include "interrupt.h"
 
 
@@ -67,6 +66,7 @@ void draw_main_canvas();
 void bad_mushroom_update_location();
 void mario_update_location();
 void plot_digit(int x, int y, int ascii);
+void beat_mushroom();
 
 
 int main(void){
@@ -159,12 +159,11 @@ void update_location(){
 
 
 void mario_update_location(){
-    bool on_step = false;
     //control mario depends on different flags
-    if (mario_move_forward && (mario_x + 19 <= pipe_1_low_x || mario_y + 25 <= pipe_1_y)){
+    if (mario_move_forward && (mario_x + 19 <= pipe_1_low_x || mario_x >= pipe_1_high_x || mario_y + 25 <= pipe_1_y)){
         mario_x += MARIO_RUN_SPEED;
     } 
-    if (mario_move_backward && (mario_x >= pipe_1_high_x || mario_y + 25 <= pipe_1_y)){
+    if (mario_move_backward && (mario_x >= pipe_1_high_x || mario_x + 19 <= pipe_1_low_x || mario_y + 25 <= pipe_1_y)){
         mario_x -= MARIO_RUN_SPEED;
     }
     if (mario_jump){
@@ -185,15 +184,13 @@ void mario_update_location(){
         }
 
         if (mario_fall){
-            if (steps_1_low_x <= mario_x && mario_x <= steps_1_high_x && mario_y + 25 <= steps_1_y + 20){
-                on_step = true;
-            }
+            beat_mushroom();
             mario_y += GRAVITY_FALL;
         }
     }
     //if not landing, cannot jump again
     //if on steps
-    if (mario_fall && on_step){
+    if (mario_fall && steps_1_low_x <= mario_x && mario_x <= steps_1_high_x && mario_y + 25 <= steps_1_y + 20){
         if (mario_y + 25 >= steps_1_y){
             mario_y = steps_1_y - 25;
             mario_jump = false;
@@ -218,6 +215,7 @@ void mario_update_location(){
 
     //gravity falling of Mario
     if (!mario_jump && (mario_x + 19 <= steps_1_low_x || mario_x >= steps_1_high_x) && (mario_x + 19 <= pipe_1_low_x || mario_x >= pipe_1_high_x) && mario_y + 25 < LOWEST_Y){
+        beat_mushroom();
         mario_y += GRAVITY_FALL;
         if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
             mario_y = LOWEST_Y - 25;
@@ -243,10 +241,24 @@ void bad_mushroom_update_location(){
         }
 
         //check whether mario dies
-        if (isBadMushroom[i] && badMushroom_x[i] <= mario_x + 19 && badMushroom_x[i] + BAD_MUSHROOM_SPEED >= mario_x + 19  && badMushroom_y[i] <= mario_x + 25){
+        if (isBadMushroom[i] && badMushroom_x[i] <= mario_x + 19 && badMushroom_x[i] + BAD_MUSHROOM_SPEED >= mario_x + 19  && badMushroom_y[i] + 19 >= mario_y && mario_y + 25 >= badMushroom_y[i]){
             lives--;
         }
     }
+}
+
+void beat_mushroom(){
+    for (int i = 0; i < 3; i++)
+    {
+        if (isBadMushroom[i] && mario_x + 19 >= badMushroom_x[i] && mario_x <= badMushroom_x[i] + 19 && mario_y + 25 <= badMushroom_y[i]){
+            if (mario_y + 25 + GRAVITY_FALL >= badMushroom_y[i]){
+                isBadMushroom[i] = false;
+                badMushroom_x[i] = -1;
+                badMushroom_y[i] = -1;
+            }
+        }
+    }
+    return;
 }
 
 //helper function to draw any background
