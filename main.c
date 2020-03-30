@@ -17,9 +17,38 @@ void init_location();
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
+#define LOWEST_Y 202
 
+//speed of characters
+#define BAD_MUSHROOM_SPEED 5
+#define MARIO_RUN_SPEED 2
+#define GRAVITY_FALL 20
+
+//Mario's position
 int mario_x = 10;
-int mario_y = 179;
+int mario_y = LOWEST_Y - 25;
+
+
+
+//location of steps in first background
+int steps_1_low_x = 49;
+int steps_1_high_x = 152;
+int steps_1_y = 131;
+
+//location of pipe in first background
+int pipe_1_low_x = 202;
+int pipe_1_high_x = 236;
+int pipe_1_y = 217;
+
+//up to three bad mushrooms
+bool isBadMushroom[3] = {true, true, false};
+int badMushroom_x[3] = {179, 152 - 19, -1};
+int badMushroom_y[3] = {LOWEST_Y - 19, 131 - 19, -1};
+
+//is the game over
+bool isGameOver = false;
+//total lives left
+int lives = 1;
 
 int main(void)
 {
@@ -46,13 +75,58 @@ int main(void)
 
         // code for drawing the boxes and lines 
         draw_background();
-        draw_image(mario_x, mario_y, Mario_stand, 19, 25);
+        //check whether the game is over
+        if (!isGameOver){
+            draw_image(mario_x, mario_y, Mario_stand, 19, 25);
+            if (isBadMushroom[0]){
+                draw_image(badMushroom_x[0], badMushroom_y[0], bad_mushroom, 19, 19);
+            } 
+            if (isBadMushroom[1]){
+                draw_image(badMushroom_x[1], badMushroom_y[1], bad_mushroom, 19, 19);
+            }
+            if (isBadMushroom[2]){
+                draw_image(badMushroom_x[2], badMushroom_y[2], bad_mushroom, 19, 19);
+            }
+        }
         // code for updating the locations of boxes
         //update_location();
-
+        update_location();
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
     }
+}
+
+//update locations for all characters
+void update_location(){
+    //bad mushroom move to left automatically
+    for (int i = 0; i < 3; i++)
+    {
+        if (isBadMushroom[i] && badMushroom_x[i] + 19 >= 0){
+            badMushroom_x[i] -= BAD_MUSHROOM_SPEED;
+        }
+
+        //gravity falling of bad mush room
+        if (badMushroom_x[i] + 19 * 0.5 <= steps_1_low_x && badMushroom_y[i] + 19 < LOWEST_Y){
+            badMushroom_y[i] += GRAVITY_FALL;
+            if (badMushroom_y[i] + GRAVITY_FALL >= LOWEST_Y - 19){
+                badMushroom_y[i] = LOWEST_Y - 19;
+            }
+        }
+
+        //check whether mario dies
+        if (badMushroom_x[i] <= mario_x + 19 && badMushroom_x[i] + BAD_MUSHROOM_SPEED >= mario_x + 19  && badMushroom_y[i] + 8 > mario_x){
+            lives--;
+        }
+
+        //check whether the game is over
+        if (lives <= 0){
+            isGameOver = true;
+        }
+    }
+
+    
+    
+    
 }
 
 //helper function to draw any background
@@ -61,7 +135,12 @@ void draw_background(){
     {
         for (int y = 0; y < SCREEN_HEIGHT; ++y)
         {
-            plot_pixel(x, y, background[y * SCREEN_WIDTH + x]);
+            if (isGameOver){ //check whether the game is over
+                plot_pixel(x, y, game_over[y * SCREEN_WIDTH + x]);
+            } else{
+                plot_pixel(x, y, background[y * SCREEN_WIDTH + x]);
+            }
+            
         }
     }
 }
