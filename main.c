@@ -20,6 +20,7 @@
 
 /*global variables defines here*/
 volatile int pixel_buffer_start; 
+volatile int character_buffer_start;
 
 //Mario's position
 int mario_x = 10;
@@ -65,6 +66,7 @@ void init_location();
 void draw_main_canvas();
 void bad_mushroom_update_location();
 void mario_update_location();
+void plot_digit(int x, int y, int ascii);
 
 
 int main(void){
@@ -81,21 +83,29 @@ int main(void){
 
 void draw_main_canvas(){
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
+    volatile int * character_ctrl_ptr = (int *)0xFF203030;
     // declare other variables(not shown)
     // initialize location and direction of rectangles(not shown)
 
     /* set front pixel buffer to start of FPGA On-chip memory */
     *(pixel_ctrl_ptr + 1) = 0xC8000000; // first store the address in the 
                                         // back buffer
+    //*(character_ctrl_ptr + 1) = 0xC9000000;                                    
     /* now, swap the front/back buffers, to set the front buffer location */
     wait_for_vsync();
     /* initialize a pointer to the pixel buffer, used by drawing functions */
     pixel_buffer_start = *pixel_ctrl_ptr;
+    character_buffer_start = *character_ctrl_ptr;
+
     clear_screen(); // pixel_buffer_start points to the pixel buffer
     /* set back pixel buffer to start of SDRAM memory */
     *(pixel_ctrl_ptr + 1) = 0xC0000000;
-    pixel_buffer_start = *(pixel_ctrl_ptr + 1); // we draw on the back buffer
+    //*(character_ctrl_ptr + 1) = 0xC9000000; 
 
+    pixel_buffer_start = *(pixel_ctrl_ptr + 1); // we draw on the back buffer
+    //character_buffer_start = *(character_ctrl_ptr + 1);
+	character_buffer_start = 0xC9000000; 
+	
     while (1)
     {
         /* Erase any boxes and lines that were drawn in the last iteration */
@@ -103,6 +113,16 @@ void draw_main_canvas(){
 
         // code for drawing the boxes and lines 
         draw_background();
+		
+		plot_digit(60, 2, 0x53); //S
+        plot_digit(62, 2, 0x43); //C
+		plot_digit(64, 2, 0x4F); //O	
+		plot_digit(66, 2, 0x52); //R
+		plot_digit(68, 2, 0x45); //E
+		plot_digit(70, 2, 0x3A); // :
+        plot_digit(72, 2, 0x30); //0
+		plot_digit(74, 2, 0x30); //0
+		
         //check whether the game is over
         if (!isGameOver){
             draw_image(mario_x, mario_y, Mario_stand, 19, 25);
@@ -116,6 +136,8 @@ void draw_main_canvas(){
                 draw_image(badMushroom_x[2], badMushroom_y[2], bad_mushroom, 19, 19);
             }
         }
+
+        
         // code for updating the locations of boxes
         //update_location();
         update_location();
@@ -272,6 +294,10 @@ void plot_pixel(int x, int y, short int line_color)
     *(short int *)(pixel_buffer_start + (y << 10) + (x << 1)) = line_color;
 }
 
+void plot_digit(int x, int y, int ascii){
+    *(short int *)(character_buffer_start + (y << 7) + x) = ascii;
+}
+
 //function to clear whole screen
 void clear_screen(){
     //set color for every pixel to black
@@ -338,3 +364,4 @@ void wait_for_vsync(){
          status = *(pixel_ctrl_ptr + 3);
      }
 }
+	
