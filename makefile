@@ -28,7 +28,7 @@ OCFLAGS		:= -O srec
 
 # Files
 HDRS		:=
-SRCS		:= main.c address_map_arm.h defines.h image.h interrupt.h interrupt_ID.h
+SRCS		:= main.c CPUlaterPurpose.c address_map_arm.h defines.h image.h interrupt.h interrupt_ID.h
 OBJS		:= $(patsubst %, %.o, $(SRCS))
 
 # Targets

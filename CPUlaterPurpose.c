@@ -24577,195 +24577,9 @@ int turtle_right[] = {
 #define		INT_ENABLE				0b01000000
 #define		INT_DISABLE				0b11000000
 
-
-void pushbutton_ISR (void);
-void config_interrupt (int, int);
-void config_KEYs (void);
-void disable_A9_interrupts (void);
-void set_A9_IRQ_stack (void);
-void config_GIC (void);
-void config_KEYs (void);
-void enable_A9_interrupts (void);
-
-
-extern bool mario_move_forward;
-extern bool mario_move_backward;
-extern bool mario_jump;
-
-// Define the IRQ exception handler
-void __attribute__ ((interrupt)) __cs3_isr_irq (void)
-{
-	// Read the ICCIAR from the CPU interface in the GIC
-	int address;
-	int interrupt_ID;
-	
-	address = MPCORE_GIC_CPUIF + ICCIAR;
-	interrupt_ID = *(int *)address;
-   
-	if (interrupt_ID == KEYS_IRQ)		// check if interrupt is from the KEYs
-		pushbutton_ISR ();
-	else
-		while (1);							// if unexpected, then stay here
-
-	// Write to the End of Interrupt Register (ICCEOIR)
-	address = MPCORE_GIC_CPUIF + ICCEOIR;
-	*(int *)address = interrupt_ID;
-
-	return;
-} 
-
-// Define the remaining exception handlers
-void __attribute__ ((interrupt)) __cs3_reset (void)
-{
-    while(1);
-}
-
-void __attribute__ ((interrupt)) __cs3_isr_undef (void)
-{
-    while(1);
-}
-
-void __attribute__ ((interrupt)) __cs3_isr_swi (void)
-{
-    while(1);
-}
-
-void __attribute__ ((interrupt)) __cs3_isr_pabort (void)
-{
-    while(1);
-}
-
-void __attribute__ ((interrupt)) __cs3_isr_dabort (void)
-{
-    while(1);
-}
-
-void __attribute__ ((interrupt)) __cs3_isr_fiq (void)
-{
-    while(1);
-}
-
-/* 
- * Turn off interrupts in the ARM processor
-*/
-void disable_A9_interrupts(void)
-{
-	int status = 0b11010011;
-	asm("msr cpsr, %[ps]" : : [ps]"r"(status));
-}
-
-/* 
- * Initialize the banked stack pointer register for IRQ mode
-*/
-void set_A9_IRQ_stack(void)
-{
-	int stack, mode;
-	stack = A9_ONCHIP_END - 7;		// top of A9 onchip memory, aligned to 8 bytes
-	/* change processor to IRQ mode with interrupts disabled */
-	mode = INT_DISABLE | IRQ_MODE;
-	asm("msr cpsr, %[ps]" : : [ps] "r" (mode));
-	/* set banked stack pointer */
-	asm("mov sp, %[ps]" : : [ps] "r" (stack));
-
-	/* go back to SVC mode before executing subroutine return! */
-	mode = INT_DISABLE | SVC_MODE;
-	asm("msr cpsr, %[ps]" : : [ps] "r" (mode));
-}
-
-/* 
- * Turn on interrupts in the ARM processor
-*/
-void enable_A9_interrupts(void)
-{
-	int status = SVC_MODE | INT_ENABLE;
-	asm("msr cpsr, %[ps]" : : [ps]"r"(status));
-}
-
-/* 
- * Configure the Generic Interrupt Controller (GIC)
-*/
-void config_GIC(void)
-{
-	int address;
-  	config_interrupt (KEYS_IRQ, CPU0); 	// configure the FPGA KEYs interrupt
-    
-  	// Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all priorities 
-	address = MPCORE_GIC_CPUIF + ICCPMR;
-  	*(int *) address = 0xFFFF;       
-
-  	// Set CPU Interface Control Register (ICCICR). Enable signaling of interrupts
-	address = MPCORE_GIC_CPUIF + ICCICR;
-  	*(int *) address = 1;       
-
-	// Configure the Distributor Control Register (ICDDCR) to send pending interrupts to CPUs 
-	address = MPCORE_GIC_DIST + ICDDCR;
-  	*(int *) address = 1;          
-}
-
-/* 
- * Configure registers in the GIC for an individual interrupt ID
- * We configure only the Interrupt Set Enable Registers (ICDISERn) and Interrupt 
- * Processor Target Registers (ICDIPTRn). The default (reset) values are used for 
- * other registers in the GIC
-*/
-void config_interrupt (int N, int CPU_target)
-{
-	int reg_offset, index, value, address;
-    
-	/* Configure the Interrupt Set-Enable Registers (ICDISERn). 
-	 * reg_offset = (integer_div(N / 32) * 4
-	 * value = 1 << (N mod 32) */
-	reg_offset = (N >> 3) & 0xFFFFFFFC; 
-	index = N & 0x1F;
-	value = 0x1 << index;
-	address = MPCORE_GIC_DIST + ICDISER + reg_offset;
-	/* Now that we know the register address and value, set the appropriate bit */
-   *(int *)address |= value;
-
-	/* Configure the Interrupt Processor Targets Register (ICDIPTRn)
-	 * reg_offset = integer_div(N / 4) * 4
-	 * index = N mod 4 */
-	reg_offset = (N & 0xFFFFFFFC);
-	index = N & 0x3;
-	address = MPCORE_GIC_DIST + ICDIPTR + reg_offset + index;
-	/* Now that we know the register address and value, write to (only) the appropriate byte */
-	*(char *)address = (char) CPU_target;
-}
-
-/* setup the KEY interrupts in the FPGA */
-void config_KEYs()
-{
-	volatile int * KEY_ptr = (int *) KEY_BASE;	// pushbutton KEY base address
-
-	*(KEY_ptr + 2) = 0xF; 	// enable interrupts for the two KEYs
-}
-
-//Iterrupt Service Routine
-void pushbutton_ISR( void )
-{
-	volatile int * KEY_ptr = (int *) KEY_BASE;
-	volatile int * LED_ptr = (int *) LED_BASE;
-	int press, LED_bits;
-
-	press = *(KEY_ptr + 3);					// read the pushbutton interrupt register
-	*(KEY_ptr + 3) = press;					// Clear the interrupt
-    
-	if (press & 0x1){							// KEY0
-        mario_move_forward = true;
-        LED_bits = 0b1;
-    }else if (press & 0x2){					// KEY1
-        mario_move_backward = true;
-        LED_bits = 0b10;
-    }else if (press & 0x4){
-        LED_bits = 0b100;
-    }else if (press & 0x8){
-        mario_jump = true;
-        LED_bits = 0b1000;
-    }
-
-	*LED_ptr = LED_bits;
-	return;
-}
+volatile char byte1 = 0;
+volatile char byte2 = 0;
+volatile char byte3 = 0; // PS/2 variables
 
 
 /*Constant defines here*/
@@ -24862,6 +24676,19 @@ bool isWin = false;
 //total lives left
 int lives = 1;
 
+
+void pushbutton_ISR (void);
+void config_interrupt (int, int);
+void config_KEYs (void);
+void disable_A9_interrupts (void);
+void set_A9_IRQ_stack (void);
+void config_GIC (void);
+void config_KEYs (void);
+void config_PS2();
+void enable_A9_interrupts (void);
+void PS2_ISR( void );
+void reset();
+
 /*Function prototypes*/
 void plot_pixel(int x, int y, short int line_color);
 void clear_screen();
@@ -24881,11 +24708,293 @@ void reset_characters();
 void turtle_update_location();
 void beat_turtle();
 
+// Define the IRQ exception handler
+void __attribute__ ((interrupt)) __cs3_isr_irq (void)
+{
+	// Read the ICCIAR from the CPU interface in the GIC
+	int address;
+	int interrupt_ID;
+	
+	address = MPCORE_GIC_CPUIF + ICCIAR;
+	interrupt_ID = *(int *)address;
+   
+	if (interrupt_ID == KEYS_IRQ)		// check if interrupt is from the KEYs
+		pushbutton_ISR ();
+	else if (interrupt_ID == PS2_IRQ)				// check if interrupt is from the PS/2
+		PS2_ISR ();
+	else
+		while (1);							// if unexpected, then stay here
+
+	// Write to the End of Interrupt Register (ICCEOIR)
+	address = MPCORE_GIC_CPUIF + ICCEOIR;
+	*(int *)address = interrupt_ID;
+
+	return;
+} 
+
+// Define the remaining exception handlers
+void __attribute__ ((interrupt)) __cs3_reset (void)
+{
+    while(1);
+}
+
+void __attribute__ ((interrupt)) __cs3_isr_undef (void)
+{
+    while(1);
+}
+
+void __attribute__ ((interrupt)) __cs3_isr_swi (void)
+{
+    while(1);
+}
+
+void __attribute__ ((interrupt)) __cs3_isr_pabort (void)
+{
+    while(1);
+}
+
+void __attribute__ ((interrupt)) __cs3_isr_dabort (void)
+{
+    while(1);
+}
+
+void __attribute__ ((interrupt)) __cs3_isr_fiq (void)
+{
+    while(1);
+}
+
+/* 
+ * Turn off interrupts in the ARM processor
+*/
+void disable_A9_interrupts(void)
+{
+	int status = 0b11010011;
+	asm("msr cpsr, %[ps]" : : [ps]"r"(status));
+}
+
+/* 
+ * Initialize the banked stack pointer register for IRQ mode
+*/
+void set_A9_IRQ_stack(void)
+{
+	int stack, mode;
+	stack = A9_ONCHIP_END - 7;		// top of A9 onchip memory, aligned to 8 bytes
+	/* change processor to IRQ mode with interrupts disabled */
+	mode = INT_DISABLE | IRQ_MODE;
+	asm("msr cpsr, %[ps]" : : [ps] "r" (mode));
+	/* set banked stack pointer */
+	asm("mov sp, %[ps]" : : [ps] "r" (stack));
+
+	/* go back to SVC mode before executing subroutine return! */
+	mode = INT_DISABLE | SVC_MODE;
+	asm("msr cpsr, %[ps]" : : [ps] "r" (mode));
+}
+
+/* 
+ * Turn on interrupts in the ARM processor
+*/
+void enable_A9_interrupts(void)
+{
+	int status = SVC_MODE | INT_ENABLE;
+	asm("msr cpsr, %[ps]" : : [ps]"r"(status));
+}
+
+/* 
+ * Configure the Generic Interrupt Controller (GIC)
+*/
+void config_GIC(void)
+{
+	int address;
+  	config_interrupt (KEYS_IRQ, CPU0); 	// configure the FPGA KEYs interrupt
+	config_interrupt (PS2_IRQ, CPU0);  
+    
+  	// Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all priorities 
+	address = MPCORE_GIC_CPUIF + ICCPMR;
+  	*(int *) address = 0xFFFF;       
+
+  	// Set CPU Interface Control Register (ICCICR). Enable signaling of interrupts
+	address = MPCORE_GIC_CPUIF + ICCICR;
+  	*(int *) address = 1;       
+
+	// Configure the Distributor Control Register (ICDDCR) to send pending interrupts to CPUs 
+	address = MPCORE_GIC_DIST + ICDDCR;
+  	*(int *) address = 1;          
+}
+
+/* 
+ * Configure registers in the GIC for an individual interrupt ID
+ * We configure only the Interrupt Set Enable Registers (ICDISERn) and Interrupt 
+ * Processor Target Registers (ICDIPTRn). The default (reset) values are used for 
+ * other registers in the GIC
+*/
+void config_interrupt (int N, int CPU_target)
+{
+	int reg_offset, index, value, address;
+    
+	/* Configure the Interrupt Set-Enable Registers (ICDISERn). 
+	 * reg_offset = (integer_div(N / 32) * 4
+	 * value = 1 << (N mod 32) */
+	reg_offset = (N >> 3) & 0xFFFFFFFC; 
+	index = N & 0x1F;
+	value = 0x1 << index;
+	address = MPCORE_GIC_DIST + ICDISER + reg_offset;
+	/* Now that we know the register address and value, set the appropriate bit */
+   *(int *)address |= value;
+
+	/* Configure the Interrupt Processor Targets Register (ICDIPTRn)
+	 * reg_offset = integer_div(N / 4) * 4
+	 * index = N mod 4 */
+	reg_offset = (N & 0xFFFFFFFC);
+	index = N & 0x3;
+	address = MPCORE_GIC_DIST + ICDIPTR + reg_offset + index;
+	/* Now that we know the register address and value, write to (only) the appropriate byte */
+	*(char *)address = (char) CPU_target;
+}
+
+/* setup the KEY interrupts in the FPGA */
+void config_KEYs()
+{
+	volatile int * KEY_ptr = (int *) KEY_BASE;	// pushbutton KEY base address
+
+	*(KEY_ptr + 2) = 0xF; 	// enable interrupts for the two KEYs
+}
+
+/* setup the PS/2 interrupts */
+void config_PS2() {
+    volatile int * PS2_ptr = (int *)PS2_BASE; // PS/2 port address
+
+    *(PS2_ptr) = 0xFF; /* reset */
+    *(PS2_ptr + 1) =
+        0x1; /* write to the PS/2 Control register to enable interrupts */
+}
+
+//Iterrupt Service Routine
+void pushbutton_ISR( void )
+{
+	volatile int * KEY_ptr = (int *) KEY_BASE;
+	volatile int * LED_ptr = (int *) LED_BASE;
+	int press, LED_bits;
+
+	press = *(KEY_ptr + 3);					// read the pushbutton interrupt register
+	*(KEY_ptr + 3) = press;					// Clear the interrupt
+    
+	if (press & 0x1){							// KEY0
+        mario_move_forward = true;
+        LED_bits = 0b1;
+    }else if (press & 0x2){					// KEY1
+        mario_move_backward = true;
+        LED_bits = 0b10;
+    }else if (press & 0x4){
+        LED_bits = 0b100;
+    }else if (press & 0x8){
+        mario_jump = true;
+        LED_bits = 0b1000;
+    }
+
+	*LED_ptr = LED_bits;
+	return;
+}
+
+void PS2_ISR( void )
+{
+  	volatile int * PS2_ptr = (int *) 0xFF200100;		// PS/2 port address
+     volatile int * LED_ptr = (int *) LED_BASE;
+     int LED_bits;
+	int PS2_data, RAVAIL;
+
+	PS2_data = *(PS2_ptr);									// read the Data register in the PS/2 port
+	RAVAIL = (PS2_data & 0xFFFF0000) >> 16;			// extract the RAVAIL field
+     
+     printf("here");
+
+	if (RAVAIL > 0)
+	{
+		/* always save the last three bytes received */
+		byte1 = byte2;
+		byte2 = byte3;
+		byte3 = PS2_data & 0xFF;
+          
+		if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x6B) ){ //left arrow
+               mario_move_backward = true;
+               LED_bits = 0b10;
+          } else if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x74) ){//right arrow
+               mario_move_forward = true;
+               LED_bits = 0b1;
+          } else if (byte3 == (char) 0x29){//space bar
+               mario_jump = true;
+          } else if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x5A) && (isWin || isGameOver)){
+			reset();
+		} else{
+               return;
+          }
+	}
+     *LED_ptr = LED_bits;
+	return;
+}
+
+void reset(){
+	//which map 
+	map_num = 1;
+
+	//Mario's position
+	mario_x = 10;
+	mario_y = LOWEST_Y - 25;
+
+	//up to three bad mushrooms
+	isBadMushroom[0] = true;
+	isBadMushroom[1] = true;
+	isBadMushroom[2] = false;
+	badMushroom_x[0] = 179;
+	badMushroom_x[1] = 152 - 19;
+	badMushroom_x[2] = OUT_SCREEN;
+	badMushroom_y[0] = LOWEST_Y - 19;
+	badMushroom_y[1] = 131 - 19;
+	badMushroom_y[2] = OUT_SCREEN;
+	isBadMushroomMovingRight[0] = false;
+	isBadMushroomMovingRight[1] = false;
+	isBadMushroomMovingRight[2] = false;
+
+	//up to three moneys
+	isMoney[0] = false;
+	isMoney[1] = false;
+	isMoney[2] = false;
+	money_x[0] = 67;
+	money_x[1] = OUT_SCREEN;
+	money_x[2] = OUT_SCREEN;
+	money_y[0] = 112;
+	money_y[1] = OUT_SCREEN;
+	money_y[2] = OUT_SCREEN;
+
+	//Good mushroom
+	isGoodMushroom = false;
+	goodMushroom_x = 118;
+	goodMushroom_y = 112;
+
+	//turtle
+	isTurtle = false;
+	isTurtleMovingRight = true;
+	turtle_x = 43;
+	turtle_y = 93 - 28;
+
+	byte1 = 0;
+	byte2 = 0;
+	byte3 = 0; // PS/2 variables
+
+	isWin = false;
+	isGameOver = false;
+}
+
+
+
+
+
+
 int main(void){
     disable_A9_interrupts ();	// disable interrupts in the A9 processor
 	set_A9_IRQ_stack ();			// initialize the stack pointer for IRQ mode
 	config_GIC ();					// configure the general interrupt controller
 	config_KEYs ();				// configure pushbutton KEYs to generate interrupts
+    config_PS2();  // configure PS/2 port to generate interrupts
 
 	enable_A9_interrupts ();	// enable interrupts in the A9 processor
 

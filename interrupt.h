@@ -2,6 +2,52 @@
 #include "interrupt_ID.h"
 #include "defines.h"
 
+
+/*Constant defines here*/
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
+#define LOWEST_Y 202
+#define OUT_SCREEN -50
+#define ENDING 254
+
+extern bool mario_move_forward;
+extern bool mario_move_backward;
+extern bool mario_jump;
+extern bool isGameOver;
+extern bool isWin;
+//which map 
+extern int map_num;
+
+//Mario's position
+extern int mario_x;
+extern int mario_y;
+
+//up to three bad mushrooms
+extern bool isBadMushroom[3];
+extern int badMushroom_x[3];
+extern int badMushroom_y[3];
+extern bool isBadMushroomMovingRight[3];
+
+//up to three moneys
+extern bool isMoney[3];
+extern int money_x[3];
+extern int money_y[3];
+
+//Good mushroom
+extern bool isGoodMushroom;
+extern int goodMushroom_x;
+extern int goodMushroom_y;
+
+//turtle
+extern bool isTurtle;
+extern bool isTurtleMovingRight;
+extern int turtle_x ;
+extern int turtle_y;
+
+volatile char byte1 = 0;
+volatile char byte2 = 0;
+volatile char byte3 = 0; // PS/2 variables
+
 void pushbutton_ISR (void);
 void config_interrupt (int, int);
 void config_KEYs (void);
@@ -9,12 +55,10 @@ void disable_A9_interrupts (void);
 void set_A9_IRQ_stack (void);
 void config_GIC (void);
 void config_KEYs (void);
+void config_PS2();
 void enable_A9_interrupts (void);
-
-
-extern bool mario_move_forward;
-extern bool mario_move_backward;
-extern bool mario_jump;
+void PS2_ISR( void );
+void reset();
 
 // Define the IRQ exception handler
 void __attribute__ ((interrupt)) __cs3_isr_irq (void)
@@ -28,6 +72,8 @@ void __attribute__ ((interrupt)) __cs3_isr_irq (void)
    
 	if (interrupt_ID == KEYS_IRQ)		// check if interrupt is from the KEYs
 		pushbutton_ISR ();
+	else if (interrupt_ID == PS2_IRQ)				// check if interrupt is from the PS/2
+		PS2_ISR ();
 	else
 		while (1);							// if unexpected, then stay here
 
@@ -112,6 +158,7 @@ void config_GIC(void)
 {
 	int address;
   	config_interrupt (KEYS_IRQ, CPU0); 	// configure the FPGA KEYs interrupt
+	config_interrupt (PS2_IRQ, CPU0);  
     
   	// Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all priorities 
 	address = MPCORE_GIC_CPUIF + ICCPMR;
@@ -164,6 +211,15 @@ void config_KEYs()
 	*(KEY_ptr + 2) = 0xF; 	// enable interrupts for the two KEYs
 }
 
+/* setup the PS/2 interrupts */
+void config_PS2() {
+    volatile int * PS2_ptr = (int *)PS2_BASE; // PS/2 port address
+
+    *(PS2_ptr) = 0xFF; /* reset */
+    *(PS2_ptr + 1) =
+        0x1; /* write to the PS/2 Control register to enable interrupts */
+}
+
 //Iterrupt Service Routine
 void pushbutton_ISR( void )
 {
@@ -189,4 +245,82 @@ void pushbutton_ISR( void )
 
 	*LED_ptr = LED_bits;
 	return;
+}
+
+void PS2_ISR( void )
+{
+  	volatile int * PS2_ptr = (int *) 0xFF200100;		// PS/2 port address
+	int PS2_data, RAVAIL;
+
+	PS2_data = *(PS2_ptr);									// read the Data register in the PS/2 port
+	RAVAIL = (PS2_data & 0xFFFF0000) >> 16;			// extract the RAVAIL field
+	if (RAVAIL > 0)
+	{
+		/* always save the last three bytes received */
+		byte1 = byte2;
+		byte2 = byte3;
+		byte3 = PS2_data & 0xFF;
+		if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x6B) ) //left arrow
+			mario_move_backward = true;
+		else if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x74) ) //right arrow
+			mario_move_forward = true;
+		else if (byte3 == (char) 0x29) //space bar
+			mario_jump = true;
+		else if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x5A) && (isWin || isGameOver)){
+			reset();
+		}
+	}
+	return;
+}
+
+void reset(){
+	//which map 
+	map_num = 1;
+
+	//Mario's position
+	mario_x = 10;
+	mario_y = LOWEST_Y - 25;
+
+	//up to three bad mushrooms
+	isBadMushroom[0] = true;
+	isBadMushroom[1] = true;
+	isBadMushroom[2] = false;
+	badMushroom_x[0] = 179;
+	badMushroom_x[1] = 152 - 19;
+	badMushroom_x[2] = OUT_SCREEN;
+	badMushroom_y[0] = LOWEST_Y - 19;
+	badMushroom_y[1] = 131 - 19;
+	badMushroom_y[2] = OUT_SCREEN;
+	isBadMushroomMovingRight[0] = false;
+	isBadMushroomMovingRight[1] = false;
+	isBadMushroomMovingRight[2] = false;
+
+	//up to three moneys
+	isMoney[0] = false;
+	isMoney[1] = false;
+	isMoney[2] = false;
+	money_x[0] = 67;
+	money_x[1] = OUT_SCREEN;
+	money_x[2] = OUT_SCREEN;
+	money_y[0] = 112;
+	money_y[1] = OUT_SCREEN;
+	money_y[2] = OUT_SCREEN;
+
+	//Good mushroom
+	isGoodMushroom = false;
+	goodMushroom_x = 118;
+	goodMushroom_y = 112;
+
+	//turtle
+	isTurtle = false;
+	isTurtleMovingRight = true;
+	turtle_x = 43;
+	turtle_y = 93 - 28;
+
+	byte1 = 0;
+	byte2 = 0;
+	byte3 = 0; // PS/2 variables
+
+	isWin = false;
+	isGameOver = false;
 }

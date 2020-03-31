@@ -12,6 +12,7 @@
         <type>C Program</type>
         <source_files>
             <source_file filepath="true">main.c</source_file>
+            <source_file filepath="true">CPUlaterPurpose.c</source_file>
             <source_file filepath="true">address_map_arm.h</source_file>
             <source_file filepath="true">defines.h</source_file>
             <source_file filepath="true">image.h</source_file>

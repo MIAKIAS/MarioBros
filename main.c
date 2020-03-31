@@ -124,6 +124,7 @@ int main(void){
 	set_A9_IRQ_stack ();			// initialize the stack pointer for IRQ mode
 	config_GIC ();					// configure the general interrupt controller
 	config_KEYs ();				// configure pushbutton KEYs to generate interrupts
+    config_PS2();  // configure PS/2 port to generate interrupts
 
 	enable_A9_interrupts ();	// enable interrupts in the A9 processor
 
