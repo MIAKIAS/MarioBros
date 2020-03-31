@@ -24780,9 +24780,9 @@ void pushbutton_ISR( void )
 #define MARIO_JUMP_SPEED 10
 #define MARIO_JUMP_HIGHT 85
 #define GRAVITY_FALL 20
-	#define ENDING 254
-	
-	#define MARIO_MID 25 * 0.5
+#define ENDING 254
+
+#define MARIO_MID 25 * 0.5
 
 /*global variables defines here*/
 volatile int pixel_buffer_start; 
@@ -24841,8 +24841,13 @@ bool isBadMushroomMovingRight[3] = {false, false, false};
 
 //up to three moneys
 bool isMoney[3] = {false, false, false};
-int money_x[3] = {67, 118, OUT_SCREEN};
-int money_y[3] = {112, 112, OUT_SCREEN};
+int money_x[3] = {67, OUT_SCREEN, OUT_SCREEN};
+int money_y[3] = {112, OUT_SCREEN, OUT_SCREEN};
+
+//Good mushroom
+bool isGoodMushroom = false;
+int goodMushroom_x = 118;
+int goodMushroom_y = 112;
 
 //turtle
 bool isTurtle = false;
@@ -24949,6 +24954,10 @@ void draw_main_canvas(){
                 } 
             }
             
+            if (isGoodMushroom){
+                draw_image(goodMushroom_x, goodMushroom_y, good_mushroom, 19, 19);
+            }
+
             if (isTurtle){
                 if (isTurtleMovingRight){
                     draw_image(turtle_x, turtle_y, turtle_right, 19, 28);
@@ -25013,6 +25022,9 @@ void mario_update_location(){
                             isMoney[i] = true;
                         }
                     }
+                    if (mario_x + MARIO_MID >= goodMushroom_x && mario_x + MARIO_MID <= goodMushroom_x + 19){
+                        isGoodMushroom = true;
+                    }
                     
                 }
             }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT){
@@ -25053,7 +25065,7 @@ void mario_update_location(){
         mario_move_backward = false;
         mario_move_forward = false;
 
-        //gravity falling of Mario
+        //gravitational falling of Mario
         if (!mario_jump && (mario_x + 20 < steps_1_low_x || mario_x + 5 > steps_1_high_x) && (mario_x + 20 < pipe_1_low_x || mario_x + 5 > pipe_1_high_x) && mario_y + 25 < LOWEST_Y){
             beat_mushroom();
             mario_y += GRAVITY_FALL;
@@ -25146,7 +25158,7 @@ void mario_update_location(){
         mario_move_backward = false;
         mario_move_forward = false;
 
-        //gravity falling of Mario
+        //gravitational falling of Mario
         if (!mario_jump && (mario_x + 20 < steps_2_L_low_x || mario_x + 5 > steps_2_L_high_x) 
                         && (mario_x + 20 < steps_2_R_low_x || mario_x + 5 > steps_2_R_high_x) 
                         && (mario_x + 20 < pipe_2_L_low_x || mario_x + 5 > pipe_2_L_high_x) 
@@ -25200,7 +25212,7 @@ void mario_update_location(){
         mario_move_backward = false;
         mario_move_forward = false;
 
-        //gravity falling of Mario
+        //gravitational falling of Mario
         if (!mario_jump && (mario_x + 20 < pipe_3_low_x || mario_x + 5 > pipe_3_high_x) 
                         && mario_y + 25 < LOWEST_Y){
             beat_mushroom();
@@ -25211,7 +25223,7 @@ void mario_update_location(){
         } 
     }
     
-    if (!isGameOver && isWin){
+    if (!isGameOver && !isWin){
         //whether Mario picks moneys
         for (int i = 0; i < 3; i++)
         {
@@ -25220,6 +25232,13 @@ void mario_update_location(){
                 money_x[i] = OUT_SCREEN;
                 money_y[i] = OUT_SCREEN;
             }
+        }
+        //whether Mario picks Good Mushroom
+        if (mario_x + MARIO_MID >= goodMushroom_x && mario_x + MARIO_MID <= goodMushroom_x + 19 && goodMushroom_y + 19 >= mario_y && mario_y + 25 >= goodMushroom_y){
+            isGoodMushroom = false;
+            goodMushroom_x = OUT_SCREEN;
+            goodMushroom_y = OUT_SCREEN;
+            lives++;
         }
     }
     
@@ -25319,7 +25338,7 @@ void bad_mushroom_update_location(){
                 badMushroom_x[i] -= BAD_MUSHROOM_SPEED;
             }
 
-            //gravity falling of bad mush room
+            //gravitational falling of bad mush room
             if (isBadMushroom[i] && badMushroom_x[i] + 19 * 0.5 <= steps_1_low_x && badMushroom_y[i] + 19 < LOWEST_Y){
                 badMushroom_y[i] += GRAVITY_FALL;
                 if (badMushroom_y[i] + GRAVITY_FALL >= LOWEST_Y - 19){
@@ -25381,13 +25400,16 @@ void beat_mushroom(){
 void draw_background(){
     for (int x = 0; x < SCREEN_WIDTH; ++x)
     {
-        for (int y = 0; y < SCREEN_HEIGHT; ++y)
+        for (int y = 0; y <= SCREEN_HEIGHT; ++y)
         {
             if (isGameOver){ //check whether the game is over
                 plot_pixel(x, y, game_over[y * SCREEN_WIDTH + x]);
             } else if (isWin){
                 plot_pixel(x, y, win[y * SCREEN_WIDTH + x]);
-            } else{
+            } else{    
+                if (map_num != 1 && y >= 203){ //to speed up drawing
+                    break;
+                }           
                 if (map_num == 1)
                     plot_pixel(x, y, background[y * SCREEN_WIDTH + x]);
                 else if (map_num == 2)
