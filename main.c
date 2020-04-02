@@ -274,7 +274,7 @@ void mario_update_location(){
                     }
                     
                 }
-            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
+            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y >= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
@@ -360,7 +360,7 @@ void mario_update_location(){
                     }
                     
                 }
-            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
+            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y >= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
@@ -446,7 +446,7 @@ void mario_update_location(){
             is_mario_moving_forward = false;
         }
         if (mario_jump){
-            if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
+            if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y >= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
