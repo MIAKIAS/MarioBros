@@ -12,12 +12,15 @@
 #define OUT_SCREEN -50
 #define ENDING 254
 
+#define TIME_LIMIT 200
+
 //speed of characters
-#define BAD_MUSHROOM_SPEED 5
-#define MARIO_RUN_SPEED 2
-#define MARIO_JUMP_SPEED 1
-#define MARIO_JUMP_HIGHT 100
-#define GRAVITY_FALL 20
+#define BAD_MUSHROOM_SPEED 1
+#define MARIO_RUN_SPEED 3
+#define MARIO_JUMP_SPEED 2
+#define MARIO_JUMP_HIGHT 85
+#define MARIO_EACH_JUMP_HIGHT 15
+#define GRAVITY_FALL 3
 
 #define MARIO_MID 25 * 0.5
 
@@ -28,6 +31,14 @@ volatile int character_buffer_start;
 
 //which map 
 int map_num = 1;
+
+//score
+int score = 0;
+int hightest_score; 
+
+//time_left left
+int time_left = TIME_LIMIT;
+int best_time = TIME_LIMIT; //fastest time
 
 //Mario's position
 int mario_x = 10;
@@ -118,11 +129,14 @@ void beat_mushroom();
 void reset_characters();
 void turtle_update_location();
 void beat_turtle();
+void draw_scores();
 
 int main(void){
     disable_A9_interrupts ();	// disable interrupts in the A9 processor
 	set_A9_IRQ_stack ();			// initialize the stack pointer for IRQ mode
 	config_GIC ();					// configure the general interrupt controller
+    config_interval_timer(); // configure Altera interval timer to generate
+                             // interrupts
 	config_KEYs ();				// configure pushbutton KEYs to generate interrupts
     config_PS2();  // configure PS/2 port to generate interrupts
 
@@ -162,15 +176,8 @@ void draw_main_canvas(){
 
         // code for drawing the boxes and lines 
         draw_background();
-		
-		plot_digit(60, 2, 0x53); //S
-        plot_digit(62, 2, 0x43); //C
-		plot_digit(64, 2, 0x4F); //O	
-		plot_digit(66, 2, 0x52); //R
-		plot_digit(68, 2, 0x45); //E
-		plot_digit(70, 2, 0x3A); // :
-        plot_digit(72, 2, 0x30); //0
-		plot_digit(74, 2, 0x30); //0
+
+        draw_scores();
 		
         //check whether the game is over
         if (!isGameOver && !isWin){
@@ -237,7 +244,7 @@ void update_location(){
 
 
 void mario_update_location(){
-    if (map_num == 1){
+    if (map_num == 1){       
         //control mario depends on different flags
         if (mario_move_forward && (mario_x + 25 <= pipe_1_low_x || mario_x > pipe_1_low_x || mario_y + 25 <= pipe_1_y)){
             mario_x += MARIO_RUN_SPEED;
@@ -287,12 +294,20 @@ void mario_update_location(){
                 mario_jump = false;
                 mario_fall = false;
             }
+            if (mario_y != steps_1_y - 25){
+                mario_jump = true;
+                mario_fall = true;
+            }
         }//if on the pipe 
         else if (mario_fall && pipe_1_low_x < mario_x + 20 && mario_x + 5 < pipe_1_high_x){
             if (mario_y + 25 >= pipe_1_y){
                 mario_y = pipe_1_y - 25;
                 mario_jump = false;
                 mario_fall = false;
+            }
+            if (mario_y != pipe_1_y - 25){
+                mario_jump = true;
+                mario_fall = true;
             }
         } else if (mario_fall){
             if (mario_y + 25 >= LOWEST_Y){
@@ -306,11 +321,13 @@ void mario_update_location(){
 
         //gravitational falling of Mario
         if (!mario_jump && (mario_x + 20 < steps_1_low_x || mario_x + 5 > steps_1_high_x) && (mario_x + 20 < pipe_1_low_x || mario_x + 5 > pipe_1_high_x) && mario_y + 25 < LOWEST_Y){
-            beat_mushroom();
-            mario_y += GRAVITY_FALL;
-            if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-                mario_y = LOWEST_Y - 25;
-            }
+            mario_fall = true;
+            mario_jump = true;
+            // beat_mushroom();
+            // mario_y += GRAVITY_FALL;
+            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
+            //     mario_y = LOWEST_Y - 25;
+            // }
         } 
     } else if (map_num == 2){
         //control mario depends on different flags
@@ -369,11 +386,19 @@ void mario_update_location(){
                 mario_jump = false;
                 mario_fall = false;
             }
+            if (mario_y != steps_2_L_y - 25){
+                mario_jump = true;
+                mario_fall = true;
+            }
         } else if (mario_fall && steps_2_R_low_x < mario_x + 20 && mario_x + 5 < steps_2_R_high_x && mario_y + 25 <= steps_2_R_y + 20){ // on right step
             if (mario_y + 25 >= steps_2_R_y){
                 mario_y = steps_2_R_y - 25;
                 mario_jump = false;
                 mario_fall = false;
+            }
+            if (mario_y != steps_2_R_y - 25){
+                mario_jump = true;
+                mario_fall = true;
             }
         } else if (mario_fall && pipe_2_L_low_x < mario_x + 20 && mario_x + 5 < pipe_2_L_high_x){//if on left pipe 
             if (mario_y + 25 >= pipe_2_L_y){
@@ -381,11 +406,19 @@ void mario_update_location(){
                 mario_jump = false;
                 mario_fall = false;
             }
+            if (mario_y != pipe_2_L_y - 25){
+                mario_jump = true;
+                mario_fall = true;
+            }
         } else if (mario_fall && pipe_2_R_low_x < mario_x + 20 && mario_x + 5 < pipe_2_R_high_x){//if on right pipe 
             if (mario_y + 25 >= pipe_2_R_y){
                 mario_y = pipe_2_R_y - 25;
                 mario_jump = false;
                 mario_fall = false;
+            }
+            if (mario_y != pipe_2_R_y - 25){
+                mario_jump = true;
+                mario_fall = true;
             }
         } else if (mario_fall){
             if (mario_y + 25 >= LOWEST_Y){
@@ -403,12 +436,14 @@ void mario_update_location(){
                         && (mario_x + 20 < pipe_2_L_low_x || mario_x + 5 > pipe_2_L_high_x) 
                         && (mario_x + 20 < pipe_2_R_low_x || mario_x + 5 > pipe_2_R_high_x) 
                         && mario_y + 25 < LOWEST_Y){
-            beat_mushroom();
-            beat_turtle();
-            mario_y += GRAVITY_FALL;
-            if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-                mario_y = LOWEST_Y - 25;
-            }
+            mario_fall = true;
+            mario_jump = true;
+            // beat_mushroom();
+            // beat_turtle();
+            // mario_y += GRAVITY_FALL;
+            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
+            //     mario_y = LOWEST_Y - 25;
+            // }
         } 
     } else if (map_num == 3){
         //control mario depends on different flags
@@ -441,6 +476,10 @@ void mario_update_location(){
                 mario_jump = false;
                 mario_fall = false;
             }
+            if (mario_y != pipe_3_y - 25){
+                mario_jump = true;
+                mario_fall = true;
+            }
         } else if (mario_fall){
             if (mario_y + 25 >= LOWEST_Y){
                 mario_y = LOWEST_Y - 25;
@@ -454,11 +493,13 @@ void mario_update_location(){
         //gravitational falling of Mario
         if (!mario_jump && (mario_x + 20 < pipe_3_low_x || mario_x + 5 > pipe_3_high_x) 
                         && mario_y + 25 < LOWEST_Y){
-            beat_mushroom();
-            mario_y += GRAVITY_FALL;
-            if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-                mario_y = LOWEST_Y - 25;
-            }
+            mario_fall = true;
+            mario_jump = true;
+            // beat_mushroom();
+            // mario_y += GRAVITY_FALL;
+            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
+            //     mario_y = LOWEST_Y - 25;
+            // }
         } 
     }
     
@@ -470,6 +511,7 @@ void mario_update_location(){
                 isMoney[i] = false;
                 money_x[i] = OUT_SCREEN;
                 money_y[i] = OUT_SCREEN;
+                score++;
             }
         }
         //whether Mario picks Good Mushroom
@@ -485,16 +527,18 @@ void mario_update_location(){
     //whether Mario go to next map
     if (map_num != 3 && mario_x + MARIO_MID >= SCREEN_WIDTH){
         map_num++;
-        reset_characters();
-        //reset Mario's position
-        mario_x = 10;
-        mario_y = LOWEST_Y - 25;
+        reset_characters();       
     } else if (map_num == 3 && mario_x + MARIO_MID >= ENDING){
         isWin = true;
     }
 }
 
 void reset_characters(){
+
+    //reset Mario's position
+    mario_x = 10;
+    mario_y = LOWEST_Y - 25;
+
     for (int i = 0; i < 3; i++)
     {
         isMoney[i] = false;
@@ -545,6 +589,9 @@ void turtle_update_location(){
         //check whether mario dies
         if (turtle_x <= mario_x + MARIO_MID && turtle_x + 19 >= mario_x + MARIO_MID  && turtle_y + 28 >= mario_y && mario_y + 25 >= turtle_y){
             lives--;
+            //reset Mario's position
+            mario_x = 10;
+            mario_y = LOWEST_Y - 25;
         }
     }
     
@@ -560,6 +607,7 @@ void beat_turtle(){
             for (int i = 0; i < 3; i++)
             {
                 isBadMushroom[i] = false;
+                score++;
             }
             
         }
@@ -617,6 +665,9 @@ void bad_mushroom_update_location(){
         //check whether mario dies
         if (isBadMushroom[i] && badMushroom_x[i] <= mario_x + MARIO_MID && badMushroom_x[i] + 19 >= mario_x + MARIO_MID  && badMushroom_y[i] + 19 >= mario_y && mario_y + 25 >= badMushroom_y[i]){
             lives--;
+            //reset Mario's position
+            mario_x = 10;
+            mario_y = LOWEST_Y - 25;
         }
     }
 }
@@ -629,6 +680,7 @@ void beat_mushroom(){
                 isBadMushroom[i] = false;
                 badMushroom_x[i] = OUT_SCREEN;
                 badMushroom_y[i] = OUT_SCREEN;
+                score++;
             }
         }
     }
@@ -763,3 +815,116 @@ void wait_for_vsync(){
      }
 }
 	
+//helper function to darw all scores
+void draw_scores(){
+    int ones, tens, hundreds;
+    //set an array, easy to get wanted value
+    int *num[] = {zero, one, two, three, four, five, six, seven, eight, nine};
+
+    //draw score
+    ones = score % 10;
+    tens = score / 10 % 10;
+    if (tens != 0){
+        draw_image(15, 23, num[tens], 15, 15);
+        draw_image(15 + 15, 23, num[ones], 15, 15);
+    } else{
+        draw_image(20, 23, num[ones], 15, 15);
+    }
+    
+
+    //draw world
+    draw_image(98, 23, num[map_num], 15, 15);
+    draw_image(98 + 15, 27, dash, 8, 15);
+    draw_image(98 + 15 + 8, 23, num[3], 15, 15);
+
+    //draw time
+    ones = time_left % 10;
+    tens = time_left / 10 % 10;
+    hundreds = time_left / 100;
+    if (hundreds != 0){
+        draw_image(187, 23, num[hundreds], 15, 15);
+        draw_image(187 + 15, 23, num[tens], 15, 15);
+        draw_image(187 + 15 + 15, 23, num[ones], 15, 15);
+    } else if (tens != 0){
+        draw_image(192, 23, num[tens], 15, 15);
+        draw_image(192 + 15, 23, num[ones], 15, 15);
+    } else{
+        draw_image(202, 23, num[ones], 15, 15);
+    }
+
+    //draw lives
+    if (lives < 0){
+        lives = 0;
+    }
+    draw_image(284, 23, num[lives], 15, 15);
+
+
+    //draw scores if game is over
+    if (isGameOver){
+        //draw best time
+        ones = best_time % 10;
+        tens = best_time / 10 % 10;
+        hundreds = best_time / 100;
+        if (hundreds != 0){
+            draw_image(115, 97, num[hundreds], 15, 15);
+            draw_image(115 + 15, 97, num[tens], 15, 15);
+            draw_image(115 + 15 + 15, 97, num[ones], 15, 15);
+            draw_image(115 + 15 + 15 + 15, 97, sec, 30, 15);
+        } else if (tens != 0){
+            draw_image(115, 97, num[tens], 15, 15);
+            draw_image(115 + 15, 97, num[ones], 15, 15);
+            draw_image(115 + 15 + 15, 97, sec, 30, 15);
+        } else{
+            draw_image(115, 97, num[ones], 15, 15);
+            draw_image(115 + 15, 97, sec, 30, 15);
+        }
+
+        //draw best score
+        ones = hightest_score % 10;
+        tens = hightest_score / 10 % 10;
+        if (tens != 0){
+            draw_image(115, 121, num[tens], 15, 15);
+            draw_image(115 + 15, 121, num[ones], 15, 15);
+        } else{
+            draw_image(115, 121, num[ones], 15, 15);
+        }
+    } else if (isWin){
+        if (score > hightest_score){
+            hightest_score = score;
+        }
+
+        int current_time = 200 - time_left;
+        if (current_time < best_time){
+            best_time = current_time;
+        }
+
+        //draw best time
+        ones = best_time % 10;
+        tens = best_time / 10 % 10;
+        hundreds = best_time / 100;
+        if (hundreds != 0){
+            draw_image(124, 92, num[hundreds], 15, 15);
+            draw_image(124 + 15, 92, num[tens], 15, 15);
+            draw_image(124 + 15 + 15, 92, num[ones], 15, 15);
+            draw_image(124 + 15 + 15 + 15, 99, sec, 30, 15);
+        } else if (tens != 0){
+            draw_image(124, 92, num[tens], 15, 15);
+            draw_image(124 + 15, 92, num[ones], 15, 15);
+            draw_image(124 + 15 + 15, 99, sec, 30, 15);
+        } else{
+            draw_image(124, 92, num[ones], 15, 15);
+            draw_image(124 + 15, 99, sec, 30, 15);
+        }
+
+        //draw best score
+        ones = hightest_score % 10;
+        tens = hightest_score / 10 % 10;
+        if (tens != 0){
+            draw_image(124, 108, num[tens], 15, 15);
+            draw_image(124 + 15, 108, num[ones], 15, 15);
+        } else{
+            draw_image(124, 108, num[ones], 15, 15);
+        }
+    }
+    
+}

@@ -13,10 +13,17 @@
 extern bool mario_move_forward;
 extern bool mario_move_backward;
 extern bool mario_jump;
+extern bool mario_fall;
 extern bool isGameOver;
 extern bool isWin;
+
+extern int MARIO_JUMP_HIGHT;
 //which map 
 extern int map_num;
+
+extern int lives;
+extern int score;
+extern int time_left;
 
 //Mario's position
 extern int mario_x;
@@ -56,8 +63,10 @@ void set_A9_IRQ_stack (void);
 void config_GIC (void);
 void config_KEYs (void);
 void config_PS2();
+void config_interval_timer(void);
 void enable_A9_interrupts (void);
 void PS2_ISR( void );
+void interval_timer_ISR();
 void reset();
 
 // Define the IRQ exception handler
@@ -74,6 +83,9 @@ void __attribute__ ((interrupt)) __cs3_isr_irq (void)
 		pushbutton_ISR ();
 	else if (interrupt_ID == PS2_IRQ)				// check if interrupt is from the PS/2
 		PS2_ISR ();
+	else if (interrupt_ID ==
+             INTERVAL_TIMER_IRQ) // check if interrupt is from the Altera timer
+        interval_timer_ISR();
 	else
 		while (1);							// if unexpected, then stay here
 
@@ -157,6 +169,11 @@ void enable_A9_interrupts(void)
 void config_GIC(void)
 {
 	int address;
+
+	/* configure the FPGA interval timer and KEYs interrupts */
+    *((int *)0xFFFED848) = 0x00000101;
+    *((int *)0xFFFED108) = 0x00000300;
+
   	config_interrupt (KEYS_IRQ, CPU0); 	// configure the FPGA KEYs interrupt
 	config_interrupt (PS2_IRQ, CPU0);  
     
@@ -220,6 +237,22 @@ void config_PS2() {
         0x1; /* write to the PS/2 Control register to enable interrupts */
 }
 
+/* setup the interval timer interrupts in the FPGA */
+void config_interval_timer()
+{
+    volatile int * interval_timer_ptr =
+        (int *)TIMER_BASE; // interal timer base address
+
+    /* set the interval timer period for scrolling the HEX displays */
+    int counter                 = 1E8; // 1/(100 MHz) x 10 ^ 8 = 1sec
+    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+
+    /* start interval timer, enable its interrupts */
+    *(interval_timer_ptr + 1) = 0x7; // STOP = 0, START = 1, CONT = 1, ITO = 1
+}
+
+
 //Iterrupt Service Routine
 void pushbutton_ISR( void )
 {
@@ -236,10 +269,13 @@ void pushbutton_ISR( void )
     }else if (press & 0x2){					// KEY1
         mario_move_backward = true;
         LED_bits = 0b10;
-    }else if (press & 0x4){
+    }else if (press & 0x4){					// KEY2
+		mario_jump = true;
         LED_bits = 0b100;
-    }else if (press & 0x8){
-        mario_jump = true;
+    }else if (press & 0x8){					// KEY3
+        if (isWin || isGameOver){
+			reset();
+		}
         LED_bits = 0b1000;
     }
 
@@ -276,6 +312,12 @@ void PS2_ISR( void )
 void reset(){
 	//which map 
 	map_num = 1;
+
+	lives = 1;
+
+	score = 0;
+
+	time_left = 200;
 
 	//Mario's position
 	mario_x = 10;
@@ -323,4 +365,19 @@ void reset(){
 
 	isWin = false;
 	isGameOver = false;
+}
+
+void interval_timer_ISR()
+{
+    volatile int * interval_timer_ptr = (int *)TIMER_BASE;
+
+    *(interval_timer_ptr) = 0; // Clear the interrupt
+
+	if (!isWin && !isGameOver){
+		time_left--;
+		if (time_left == 0){
+			isGameOver = true;
+		}
+	}
+    return;
 }
