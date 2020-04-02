@@ -108,6 +108,7 @@ int turtle_y = 93 - 28;
 //is the game over
 bool isGameOver = false;
 bool isWin = false;
+bool isFirstTime = true;
 //total lives left
 int lives = 1;
 
@@ -180,7 +181,7 @@ void draw_main_canvas(){
         draw_scores();
 		
         //check whether the game is over
-        if (!isGameOver && !isWin){
+        if (!isGameOver && !isWin && !isFirstTime){
             //draw Mario depends on different movements
             if (mario_jump && is_mario_moving_forward){
                 draw_image(mario_x, mario_y, Mario_jump, 26, 25);
@@ -273,7 +274,7 @@ void mario_update_location(){
                     }
                     
                 }
-            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT){
+            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
@@ -323,11 +324,6 @@ void mario_update_location(){
         if (!mario_jump && (mario_x + 20 < steps_1_low_x || mario_x + 5 > steps_1_high_x) && (mario_x + 20 < pipe_1_low_x || mario_x + 5 > pipe_1_high_x) && mario_y + 25 < LOWEST_Y){
             mario_fall = true;
             mario_jump = true;
-            // beat_mushroom();
-            // mario_y += GRAVITY_FALL;
-            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-            //     mario_y = LOWEST_Y - 25;
-            // }
         } 
     } else if (map_num == 2){
         //control mario depends on different flags
@@ -364,7 +360,7 @@ void mario_update_location(){
                     }
                     
                 }
-            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT){
+            }else if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
@@ -438,12 +434,6 @@ void mario_update_location(){
                         && mario_y + 25 < LOWEST_Y){
             mario_fall = true;
             mario_jump = true;
-            // beat_mushroom();
-            // beat_turtle();
-            // mario_y += GRAVITY_FALL;
-            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-            //     mario_y = LOWEST_Y - 25;
-            // }
         } 
     } else if (map_num == 3){
         //control mario depends on different flags
@@ -456,7 +446,7 @@ void mario_update_location(){
             is_mario_moving_forward = false;
         }
         if (mario_jump){
-            if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT){
+            if (!mario_fall && mario_jumped < MARIO_JUMP_HIGHT && mario_y <= 27){
                 mario_y -= MARIO_JUMP_SPEED;
                 mario_jumped += MARIO_JUMP_SPEED;
             } else{
@@ -495,11 +485,6 @@ void mario_update_location(){
                         && mario_y + 25 < LOWEST_Y){
             mario_fall = true;
             mario_jump = true;
-            // beat_mushroom();
-            // mario_y += GRAVITY_FALL;
-            // if (mario_y + GRAVITY_FALL >= LOWEST_Y - 25){
-            //     mario_y = LOWEST_Y - 25;
-            // }
         } 
     }
     
@@ -693,7 +678,9 @@ void draw_background(){
     {
         for (int y = 0; y <= SCREEN_HEIGHT; ++y)
         {
-            if (isGameOver){ //check whether the game is over
+            if (isFirstTime){
+                plot_pixel(x, y, open[y * SCREEN_WIDTH + x]);
+            } else if (isGameOver){ //check whether the game is over
                 plot_pixel(x, y, game_over[y * SCREEN_WIDTH + x]);
             } else if (isWin){
                 plot_pixel(x, y, win[y * SCREEN_WIDTH + x]);
@@ -906,14 +893,14 @@ void draw_scores(){
             draw_image(124, 92, num[hundreds], 15, 15);
             draw_image(124 + 15, 92, num[tens], 15, 15);
             draw_image(124 + 15 + 15, 92, num[ones], 15, 15);
-            draw_image(124 + 15 + 15 + 15, 99, sec, 30, 15);
+            draw_image(124 + 15 + 15 + 15, 92, sec, 30, 15);
         } else if (tens != 0){
             draw_image(124, 92, num[tens], 15, 15);
             draw_image(124 + 15, 92, num[ones], 15, 15);
-            draw_image(124 + 15 + 15, 99, sec, 30, 15);
+            draw_image(124 + 15 + 15, 92, sec, 30, 15);
         } else{
             draw_image(124, 92, num[ones], 15, 15);
-            draw_image(124 + 15, 99, sec, 30, 15);
+            draw_image(124 + 15, 92, sec, 30, 15);
         }
 
         //draw best score

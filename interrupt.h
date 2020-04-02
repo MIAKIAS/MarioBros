@@ -16,6 +16,7 @@ extern bool mario_jump;
 extern bool mario_fall;
 extern bool isGameOver;
 extern bool isWin;
+extern bool isFirstTime;
 
 extern int MARIO_JUMP_HIGHT;
 //which map 
@@ -302,7 +303,10 @@ void PS2_ISR( void )
 			mario_move_forward = true;
 		else if (byte3 == (char) 0x29) //space bar
 			mario_jump = true;
-		else if ( (byte2 == (char) 0xE0) && (byte3 == (char) 0x5A) && (isWin || isGameOver)){
+		else if (byte3 == (char) 0x5A && (isFirstTime || isWin || isGameOver)){ //enter
+			if (isFirstTime){
+				isFirstTime = false;
+			}
 			reset();
 		}
 	}
