@@ -12,15 +12,14 @@
 #define OUT_SCREEN -50
 #define ENDING 254
 
-#define TIME_LIMIT 200
+#define TIME_LIMIT 150
 
 //speed of characters
 #define BAD_MUSHROOM_SPEED 1
-#define MARIO_RUN_SPEED 3
-#define MARIO_JUMP_SPEED 2
-#define MARIO_JUMP_HIGHT 85
-#define MARIO_EACH_JUMP_HIGHT 15
-#define GRAVITY_FALL 3
+#define MARIO_RUN_SPEED 4
+#define MARIO_JUMP_SPEED 8
+#define MARIO_JUMP_HIGHT 75
+#define GRAVITY_FALL 10
 
 #define MARIO_MID 25 * 0.5
 
@@ -178,7 +177,9 @@ void draw_main_canvas(){
         // code for drawing the boxes and lines 
         draw_background();
 
-        draw_scores();
+        if (!isFirstTime){
+            draw_scores();
+        }
 		
         //check whether the game is over
         if (!isGameOver && !isWin && !isFirstTime){
@@ -427,7 +428,7 @@ void mario_update_location(){
         mario_move_forward = false;
 
         //gravitational falling of Mario
-        if (!mario_jump && (mario_x + 20 < steps_2_L_low_x || mario_x + 5 > steps_2_L_high_x) 
+        if (!mario_jump && (mario_x + 20 < steps_2_L_low_x || mario_x + 5 > steps_2_L_high_x || mario_y + 25 >= steps_2_L_y + 20) 
                         && (mario_x + 20 < steps_2_R_low_x || mario_x + 5 > steps_2_R_high_x) 
                         && (mario_x + 20 < pipe_2_L_low_x || mario_x + 5 > pipe_2_L_high_x) 
                         && (mario_x + 20 < pipe_2_R_low_x || mario_x + 5 > pipe_2_R_high_x) 
@@ -492,7 +493,7 @@ void mario_update_location(){
         //whether Mario picks moneys
         for (int i = 0; i < 3; i++)
         {
-            if (mario_x + MARIO_MID >= money_x[i] && mario_x + MARIO_MID <= money_x[i] + 16 && money_y[i] + 19 >= mario_y && mario_y + 25 >= money_y[i]){
+            if (isMoney[i] && mario_x + MARIO_MID >= money_x[i] && mario_x + MARIO_MID <= money_x[i] + 16 && money_y[i] + 19 >= mario_y && mario_y + 25 >= money_y[i]){
                 isMoney[i] = false;
                 money_x[i] = OUT_SCREEN;
                 money_y[i] = OUT_SCREEN;
@@ -500,7 +501,7 @@ void mario_update_location(){
             }
         }
         //whether Mario picks Good Mushroom
-        if (mario_x + MARIO_MID >= goodMushroom_x && mario_x + MARIO_MID <= goodMushroom_x + 19 && goodMushroom_y + 19 >= mario_y && mario_y + 25 >= goodMushroom_y){
+        if (isGoodMushroom && mario_x + MARIO_MID >= goodMushroom_x && mario_x + MARIO_MID <= goodMushroom_x + 19 && goodMushroom_y + 19 >= mario_y && mario_y + 25 >= goodMushroom_y){
             isGoodMushroom = false;
             goodMushroom_x = OUT_SCREEN;
             goodMushroom_y = OUT_SCREEN;
@@ -541,6 +542,9 @@ void reset_characters(){
         badMushroom_x[0] = 196;
         badMushroom_x[1] = 152;
         badMushroom_x[2] = 100;
+
+        goodMushroom_x = OUT_SCREEN;
+        goodMushroom_y = OUT_SCREEN;
 
         money_x[0] = steps_2_R_low_x;
         money_y[0] = 113;
