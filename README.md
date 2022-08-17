@@ -1,5 +1,6 @@
 # MarioBros
-This is the final project from 2020 ECE243S course in the University of Toronto. In this project, we used C language to implement a graphic game named "MarioBros". In the game, the player uses a PS/2 keyboard to control Mario to go towards the castle to rescue the princess. On the way to the castle, Mario has to dodge or beat Bad Mushrooms and Turtles to live. There are also Good Mushrooms that help Mario. Once Mario gets to the castle alive in a limited time, the player wins.
+
+This is the final project from the 2020 ECE243S course in the University of Toronto. In this project, we used C language to implement a graphic game named "MarioBros". In the game, the player uses a PS/2 keyboard to control Mario to go toward the castle to rescue the princess. On the way to the castle, Mario has to dodge or beat Bad Mushrooms and Turtles to live. There are also Good Mushrooms that help Mario. Once Mario gets to the castle alive in a limited time, the player wins.
 
 ## Use a PS/2 keyboard to control Mr. Mario
 
